@@ -1337,7 +1337,7 @@ class Connection(object):
             hash_keynames,
             index_name=index_name,
         )
-        self._validate_multi_range_key_condition(
+        range_key_condition = self._normalize_multi_range_key_condition(
             range_key_condition,
             range_keynames,
             index_name=index_name,
@@ -1486,13 +1486,20 @@ class Connection(object):
         return path[0]
 
     @staticmethod
-    def _validate_multi_range_key_condition(
+    def _combine_conditions(conditions: List[Condition]) -> Condition:
+        combined_condition = conditions[0]
+        for condition in conditions[1:]:
+            combined_condition &= condition
+        return combined_condition
+
+    @staticmethod
+    def _normalize_multi_range_key_condition(
         range_key_condition: Optional[Condition],
         range_keynames: Sequence[str],
         index_name: Optional[str] = None,
-    ) -> None:
+    ) -> Optional[Condition]:
         if range_key_condition is None or len(range_keynames) <= 1:
-            return
+            return range_key_condition
 
         valid_operators = {"=", "<", "<=", ">", ">=", "BETWEEN", "begins_with"}
         conditions_by_key: Dict[str, Condition] = {}
@@ -1511,11 +1518,10 @@ class Connection(object):
                 raise ValueError(
                     f"{context} range_key_condition has multiple conditions for range key: {key_name}"
                 )
-            assert key_name is not None
             conditions_by_key[key_name] = condition
 
         if not conditions_by_key:
-            return
+            return range_key_condition
 
         highest_position = max(
             range_keynames.index(key_name) for key_name in conditions_by_key
@@ -1541,3 +1547,10 @@ class Connection(object):
                 f"{context} range_key_condition must use equality for preceding range keys: "
                 f"{', '.join(non_equal_prefix_keys)}"
             )
+
+        ordered_conditions = [
+            conditions_by_key[key_name]
+            for key_name in range_keynames
+            if key_name in conditions_by_key
+        ]
+        return Connection._combine_conditions(ordered_conditions)
