@@ -1196,7 +1196,7 @@ class Connection(object):
     def query(
         self,
         table_name: str,
-        hash_key: Union[object, Sequence[object], Mapping[str, object]],
+        hash_key: Optional[Any] = None,
         range_key_condition: Optional[Condition] = None,
         filter_condition: Optional[Any] = None,
         attributes_to_get: Optional[Any] = None,
@@ -1207,9 +1207,13 @@ class Connection(object):
         return_consumed_capacity: Optional[str] = None,
         scan_index_forward: Optional[bool] = None,
         select: Optional[str] = None,
+        hash_keys: Optional[Mapping[str, Any]] = None,
     ) -> Dict:
         """
         Performs the Query operation and returns the result
+
+        :param hash_key: The hash key to query. Can be None when ``hash_keys`` is provided.
+        :param hash_keys: Named hash key values for indexes with multiple hash key attributes.
         """
         self._check_condition('range_key_condition', range_key_condition)
         self._check_condition('filter_condition', filter_condition)
@@ -1225,12 +1229,20 @@ class Connection(object):
             if not tbl.has_index_name(index_name):
                 raise ValueError("Table {} has no index: {}".format(table_name, index_name))
             hash_keynames = tbl.get_index_hash_keynames(index_name)
+            range_keynames = tbl.get_index_range_keynames(index_name)
         else:
             hash_keynames = [tbl.hash_keyname]
+            range_keynames = [tbl.range_keyname] if tbl.range_keyname else []
 
         hash_key_values = self._get_query_hash_key_values(
             hash_key,
+            hash_keys,
             hash_keynames,
+            index_name=index_name,
+        )
+        self._validate_multi_range_key_condition(
+            range_key_condition,
+            range_keynames,
             index_name=index_name,
         )
         key_condition = None
@@ -1288,30 +1300,111 @@ class Connection(object):
 
     @staticmethod
     def _get_query_hash_key_values(
-        hash_key: Union[object, Sequence[object], Mapping[str, object]],
+        hash_key: Optional[Any],
+        hash_keys: Optional[Mapping[str, Any]],
         hash_keynames: Sequence[str],
         index_name: Optional[str] = None,
-    ) -> List[object]:
+    ) -> List[Any]:
+        if hash_key is not None and hash_keys is not None:
+            raise ValueError(f"Index {index_name} received both hash_key and hash_keys")
         if len(hash_keynames) == 1:
-            return [hash_key]
-        if isinstance(hash_key, (tuple, list)):
-            if len(hash_key) != len(hash_keynames):
+            if hash_keys is None:
+                if hash_key is None:
+                    raise ValueError(f"Index {index_name} requires a hash_key")
+                if isinstance(hash_key, (tuple, list, Mapping)):
+                    raise ValueError(f"Index {index_name} expects a single hash_key value")
+                return [hash_key]
+            return Connection._get_ordered_query_hash_key_values(hash_keys, hash_keynames, index_name=index_name)
+        if hash_key is not None:
+            raise ValueError(f"Index {index_name} has multiple hash key attributes; use hash_keys=...")
+        if hash_keys is None:
+            raise ValueError(f"Index {index_name} requires hash_keys")
+        return Connection._get_ordered_query_hash_key_values(hash_keys, hash_keynames, index_name=index_name)
+
+    @staticmethod
+    def _get_ordered_query_hash_key_values(
+        hash_keys: Mapping[str, Any],
+        hash_keynames: Sequence[str],
+        index_name: Optional[str] = None,
+    ) -> List[Any]:
+        if not isinstance(hash_keys, Mapping):
+            raise ValueError(f"Index {index_name} expects hash_keys to be a mapping")
+        missing_keys = [keyname for keyname in hash_keynames if keyname not in hash_keys]
+        if missing_keys:
+            raise ValueError(
+                f"Index {index_name} requires values for hash keys: {', '.join(missing_keys)}"
+            )
+        extra_keys = [keyname for keyname in hash_keys if keyname not in hash_keynames]
+        if extra_keys:
+            raise ValueError(
+                f"Index {index_name} received unknown hash keys: {', '.join(extra_keys)}"
+            )
+        return [hash_keys[keyname] for keyname in hash_keynames]
+
+    @staticmethod
+    def _flatten_and_conditions(condition: Condition) -> List[Condition]:
+        if condition.operator == 'AND':
+            conditions = []
+            for value in condition.values:
+                conditions.extend(Connection._flatten_and_conditions(value))
+            return conditions
+        return [condition]
+
+    @staticmethod
+    def _condition_key_name(condition: Condition) -> Optional[str]:
+        path = getattr(condition.values[0], 'path', None) if condition.values else None
+        if not isinstance(path, list) or len(path) != 1:
+            return None
+        return path[0]
+
+    @staticmethod
+    def _validate_multi_range_key_condition(
+        range_key_condition: Optional[Condition],
+        range_keynames: Sequence[str],
+        index_name: Optional[str] = None,
+    ) -> None:
+        if range_key_condition is None or len(range_keynames) <= 1:
+            return
+
+        valid_operators = {'=', '<', '<=', '>', '>=', 'BETWEEN', 'begins_with'}
+        conditions_by_key: Dict[str, Condition] = {}
+        context = f"Index {index_name}"
+        for condition in Connection._flatten_and_conditions(range_key_condition):
+            if condition.operator not in valid_operators:
                 raise ValueError(
-                    f"Index {index_name} expects {len(hash_keynames)} hash key values, got {len(hash_key)}"
+                    f"{context} range_key_condition uses unsupported range key operator: {condition.operator}"
                 )
-            return list(hash_key)
-        if isinstance(hash_key, Mapping):
-            missing_keys = [keyname for keyname in hash_keynames if keyname not in hash_key]
-            if missing_keys:
+            key_name = Connection._condition_key_name(condition)
+            if key_name not in range_keynames:
                 raise ValueError(
-                    f"Index {index_name} requires values for hash keys: {', '.join(missing_keys)}"
+                    f"{context} range_key_condition must only use range keys: {', '.join(range_keynames)}"
                 )
-            extra_keys = [keyname for keyname in hash_key if keyname not in hash_keynames]
-            if extra_keys:
-                raise ValueError(
-                    f"Index {index_name} received unknown hash keys: {', '.join(extra_keys)}"
-                )
-            return [hash_key[keyname] for keyname in hash_keynames]
-        raise ValueError(
-            f"Index {index_name} expects {len(hash_keynames)} hash key values as tuple/list"
-        )
+            if key_name in conditions_by_key:
+                raise ValueError(f"{context} range_key_condition has multiple conditions for range key: {key_name}")
+            conditions_by_key[key_name] = condition
+
+        if not conditions_by_key:
+            return
+
+        highest_position = max(range_keynames.index(key_name) for key_name in conditions_by_key)
+        missing_prefix_keys = [
+            key_name
+            for key_name in range_keynames[:highest_position]
+            if key_name not in conditions_by_key
+        ]
+        if missing_prefix_keys:
+            raise ValueError(
+                f"{context} range_key_condition must include equality conditions for preceding range keys: "
+                f"{', '.join(missing_prefix_keys)}"
+            )
+
+        non_equal_prefix_keys = [
+            key_name
+            for key_name in range_keynames[:highest_position]
+            if conditions_by_key[key_name].operator != '='
+        ]
+        if non_equal_prefix_keys:
+            raise ValueError(
+                f"{context} range_key_condition must use equality for preceding range keys: "
+                f"{', '.join(non_equal_prefix_keys)}"
+            )

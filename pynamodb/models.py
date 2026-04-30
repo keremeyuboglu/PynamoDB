@@ -1,7 +1,7 @@
 """
 DynamoDB Models for PynamoDB
 """
-import random
+
 import time
 import logging
 import warnings
@@ -33,10 +33,19 @@ else:
     from typing_extensions import Protocol
 
 from pynamodb.expressions.update import Action
-from pynamodb.exceptions import DoesNotExist, TableDoesNotExist, TableError, InvalidStateError, PutError, \
-    AttributeNullError
+from pynamodb.exceptions import (
+    DoesNotExist,
+    TableDoesNotExist,
+    TableError,
+    InvalidStateError,
+    PutError,
+    AttributeNullError,
+)
 from pynamodb.attributes import (
-    AttributeContainer, AttributeContainerMeta, TTLAttribute, VersionAttribute
+    AttributeContainer,
+    AttributeContainerMeta,
+    TTLAttribute,
+    VersionAttribute,
 )
 from pynamodb.connection.table import TableConnection
 from pynamodb.expressions.condition import Condition
@@ -46,21 +55,36 @@ from pynamodb.pagination import ResultIterator
 from pynamodb.settings import get_settings_value
 from pynamodb import constants
 from pynamodb.constants import (
-    ATTR_NAME, ATTR_TYPE,
-    KEY_TYPE, ITEM,
-    ATTRIBUTES, PUT, DELETE, RESPONSES,
+    ATTR_NAME,
+    ATTR_TYPE,
+    KEY_TYPE,
+    ITEM,
+    ATTRIBUTES,
+    PUT,
+    DELETE,
+    RESPONSES,
     ALL_NEW,
     KEYS,
-    TABLE_STATUS, ACTIVE, BATCH_GET_PAGE_LIMIT,
-    UNPROCESSED_KEYS, PUT_REQUEST, DELETE_REQUEST,
+    TABLE_STATUS,
+    ACTIVE,
+    BATCH_GET_PAGE_LIMIT,
+    UNPROCESSED_KEYS,
+    PUT_REQUEST,
+    DELETE_REQUEST,
     BATCH_WRITE_PAGE_LIMIT,
-    META_CLASS_NAME, REGION, HOST, NULL,
-    COUNT, ITEM_COUNT, KEY, UNPROCESSED_ITEMS,
+    META_CLASS_NAME,
+    REGION,
+    HOST,
+    NULL,
+    COUNT,
+    ITEM_COUNT,
+    KEY,
+    UNPROCESSED_ITEMS,
 )
 
-_T = TypeVar('_T', bound='Model')
-_KeyType = object
-_HashKeyQueryType = Union[_KeyType, Tuple[_KeyType, ...], List[_KeyType]]
+_T = TypeVar("_T", bound="Model")
+_KeyType = Any
+_HashKeysQueryType = Mapping[str, _KeyType]
 
 
 log = logging.getLogger(__name__)
@@ -71,6 +95,7 @@ class BatchWrite(Generic[_T]):
     """
     A class for batch writes
     """
+
     def __init__(self, model: Type[_T], auto_commit: bool = True):
         self.model = model
         self.auto_commit = auto_commit
@@ -136,10 +161,10 @@ class BatchWrite(Generic[_T]):
         put_items = []
         delete_items = []
         for item in self.pending_operations:
-            if item['action'] == PUT:
-                put_items.append(item['item'].serialize())
-            elif item['action'] == DELETE:
-                delete_items.append(item['item']._get_keys())
+            if item["action"] == PUT:
+                put_items.append(item["item"].serialize())
+            elif item["action"] == DELETE:
+                delete_items.append(item["item"]._get_keys())
         self.pending_operations = []
         if not len(put_items) and not len(delete_items):
             return
@@ -150,7 +175,9 @@ class BatchWrite(Generic[_T]):
         if data is None:
             return
         retries = 0
-        unprocessed_items = data.get(UNPROCESSED_ITEMS, {}).get(self.model.Meta.table_name)
+        unprocessed_items = data.get(UNPROCESSED_ITEMS, {}).get(
+            self.model.Meta.table_name
+        )
         while unprocessed_items:
             # TODO: we should consider using exponential backoff here
             # TODO: it is somewhat unintuitive that we retry unprocessed items max_retry_attempts times,
@@ -158,7 +185,9 @@ class BatchWrite(Generic[_T]):
             retries += 1
             if retries >= self.model.Meta.max_retry_attempts:
                 self.failed_operations = unprocessed_items
-                raise PutError("Failed to batch write items: max_retry_attempts exceeded")
+                raise PutError(
+                    "Failed to batch write items: max_retry_attempts exceeded"
+                )
             put_items = []
             delete_items = []
             for item in unprocessed_items:
@@ -166,12 +195,18 @@ class BatchWrite(Generic[_T]):
                     put_items.append(item.get(PUT_REQUEST).get(ITEM))  # type: ignore
                 elif DELETE_REQUEST in item:
                     delete_items.append(item.get(DELETE_REQUEST).get(KEY))  # type: ignore
-            log.info("Resending %d unprocessed keys for batch operation (retry %d)", len(unprocessed_items), retries)
+            log.info(
+                "Resending %d unprocessed keys for batch operation (retry %d)",
+                len(unprocessed_items),
+                retries,
+            )
             data = self.model._get_connection().batch_write_item(
                 put_items=put_items,
                 delete_items=delete_items,
             )
-            unprocessed_items = data.get(UNPROCESSED_ITEMS, {}).get(self.model.Meta.table_name)
+            unprocessed_items = data.get(UNPROCESSED_ITEMS, {}).get(
+                self.model.Meta.table_name
+            )
 
 
 class MetaProtocol(Protocol):
@@ -197,6 +232,7 @@ class MetaModel(AttributeContainerMeta):
     """
     Model meta class
     """
+
     def __new__(cls, name, bases, namespace, discriminator=None):
         # Defined so that the discriminator can be set in the class definition.
         return super().__new__(cls, name, bases, namespace)
@@ -204,63 +240,104 @@ class MetaModel(AttributeContainerMeta):
     def __init__(self, name, bases, namespace, discriminator=None) -> None:
         super().__init__(name, bases, namespace, discriminator)
         MetaModel._initialize_indexes(self)
-        cls = cast(Type['Model'], self)
+        cls = cast(Type["Model"], self)
         for attr_name, attribute in cls.get_attributes().items():
             if attribute.is_hash_key:
                 if cls._hash_keyname and cls._hash_keyname != attr_name:
-                    raise ValueError(f"{cls.__name__} has more than one hash key: {cls._hash_keyname}, {attr_name}")
+                    raise ValueError(
+                        f"{cls.__name__} has more than one hash key: {cls._hash_keyname}, {attr_name}"
+                    )
                 cls._hash_keyname = attr_name
             if attribute.is_range_key:
                 if cls._range_keyname and cls._range_keyname != attr_name:
-                    raise ValueError(f"{cls.__name__} has more than one range key: {cls._range_keyname}, {attr_name}")
+                    raise ValueError(
+                        f"{cls.__name__} has more than one range key: {cls._range_keyname}, {attr_name}"
+                    )
                 cls._range_keyname = attr_name
             if isinstance(attribute, VersionAttribute):
-                if cls._version_attribute_name and cls._version_attribute_name != attr_name:
+                if (
+                    cls._version_attribute_name
+                    and cls._version_attribute_name != attr_name
+                ):
                     raise ValueError(
-                        "The model has more than one Version attribute: {}, {}"
-                        .format(cls._version_attribute_name, attr_name)
+                        "The model has more than one Version attribute: {}, {}".format(
+                            cls._version_attribute_name, attr_name
+                        )
                     )
                 cls._version_attribute_name = attr_name
 
-        ttl_attr_names = [name for name, attr in cls.get_attributes().items() if isinstance(attr, TTLAttribute)]
+        ttl_attr_names = [
+            name
+            for name, attr in cls.get_attributes().items()
+            if isinstance(attr, TTLAttribute)
+        ]
         if len(ttl_attr_names) > 1:
-            raise ValueError("{} has more than one TTL attribute: {}".format(
-                cls.__name__, ", ".join(ttl_attr_names)))
+            raise ValueError(
+                "{} has more than one TTL attribute: {}".format(
+                    cls.__name__, ", ".join(ttl_attr_names)
+                )
+            )
 
         if isinstance(namespace, dict):
             for attr_name, attr_obj in namespace.items():
                 if attr_name == META_CLASS_NAME:
                     if not hasattr(attr_obj, REGION):
-                        setattr(attr_obj, REGION, get_settings_value('region'))
+                        setattr(attr_obj, REGION, get_settings_value("region"))
                     if not hasattr(attr_obj, HOST):
-                        setattr(attr_obj, HOST, get_settings_value('host'))
-                    if hasattr(attr_obj, 'session_cls') or hasattr(attr_obj, 'request_timeout_seconds'):
-                        warnings.warn("The `session_cls` and `request_timeout_second` options are no longer supported")
-                    if not hasattr(attr_obj, 'connect_timeout_seconds'):
-                        setattr(attr_obj, 'connect_timeout_seconds', get_settings_value('connect_timeout_seconds'))
-                    if not hasattr(attr_obj, 'read_timeout_seconds'):
-                        setattr(attr_obj, 'read_timeout_seconds', get_settings_value('read_timeout_seconds'))
-                    if not hasattr(attr_obj, 'max_retry_attempts'):
-                        setattr(attr_obj, 'max_retry_attempts', get_settings_value('max_retry_attempts'))
-                    if not hasattr(attr_obj, 'max_pool_connections'):
-                        setattr(attr_obj, 'max_pool_connections', get_settings_value('max_pool_connections'))
-                    if not hasattr(attr_obj, 'extra_headers'):
-                        setattr(attr_obj, 'extra_headers', get_settings_value('extra_headers'))
-                    if not hasattr(attr_obj, 'aws_access_key_id'):
-                        setattr(attr_obj, 'aws_access_key_id', None)
-                    if not hasattr(attr_obj, 'aws_secret_access_key'):
-                        setattr(attr_obj, 'aws_secret_access_key', None)
-                    if not hasattr(attr_obj, 'aws_session_token'):
-                        setattr(attr_obj, 'aws_session_token', None)
+                        setattr(attr_obj, HOST, get_settings_value("host"))
+                    if hasattr(attr_obj, "session_cls") or hasattr(
+                        attr_obj, "request_timeout_seconds"
+                    ):
+                        warnings.warn(
+                            "The `session_cls` and `request_timeout_second` options are no longer supported"
+                        )
+                    if not hasattr(attr_obj, "connect_timeout_seconds"):
+                        setattr(
+                            attr_obj,
+                            "connect_timeout_seconds",
+                            get_settings_value("connect_timeout_seconds"),
+                        )
+                    if not hasattr(attr_obj, "read_timeout_seconds"):
+                        setattr(
+                            attr_obj,
+                            "read_timeout_seconds",
+                            get_settings_value("read_timeout_seconds"),
+                        )
+                    if not hasattr(attr_obj, "max_retry_attempts"):
+                        setattr(
+                            attr_obj,
+                            "max_retry_attempts",
+                            get_settings_value("max_retry_attempts"),
+                        )
+                    if not hasattr(attr_obj, "max_pool_connections"):
+                        setattr(
+                            attr_obj,
+                            "max_pool_connections",
+                            get_settings_value("max_pool_connections"),
+                        )
+                    if not hasattr(attr_obj, "extra_headers"):
+                        setattr(
+                            attr_obj,
+                            "extra_headers",
+                            get_settings_value("extra_headers"),
+                        )
+                    if not hasattr(attr_obj, "aws_access_key_id"):
+                        setattr(attr_obj, "aws_access_key_id", None)
+                    if not hasattr(attr_obj, "aws_secret_access_key"):
+                        setattr(attr_obj, "aws_secret_access_key", None)
+                    if not hasattr(attr_obj, "aws_session_token"):
+                        setattr(attr_obj, "aws_session_token", None)
 
             # create a custom Model.DoesNotExist derived from pynamodb.exceptions.DoesNotExist,
             # so that "except Model.DoesNotExist:" would not catch other models' exceptions
-            if 'DoesNotExist' not in namespace:
+            if "DoesNotExist" not in namespace:
                 exception_attrs = {
-                    '__module__': namespace.get('__module__'),
-                    '__qualname__': f'{cls.__qualname__}.{"DoesNotExist"}',
+                    "__module__": namespace.get("__module__"),
+                    "__qualname__": f"{cls.__qualname__}.{'DoesNotExist'}",
                 }
-                cls.DoesNotExist = type('DoesNotExist', (DoesNotExist, ), exception_attrs)
+                cls.DoesNotExist = type(
+                    "DoesNotExist", (DoesNotExist,), exception_attrs
+                )
 
     @staticmethod
     def _initialize_indexes(cls):
@@ -309,11 +386,15 @@ class Model(AttributeContainer, metaclass=MetaModel):
         """
         if hash_key is not None:
             if self._hash_keyname is None:
-                raise ValueError(f"This model has no hash key, but a hash key value was provided: {hash_key}")
+                raise ValueError(
+                    f"This model has no hash key, but a hash key value was provided: {hash_key}"
+                )
             attributes[self._hash_keyname] = hash_key
         if range_key is not None:
             if self._range_keyname is None:
-                raise ValueError(f"This model has no range key, but a range key value was provided: {range_key}")
+                raise ValueError(
+                    f"This model has no range key, but a range key value was provided: {range_key}"
+                )
             attributes[self._range_keyname] = range_key
         super(Model, self).__init__(_user_instantiated=_user_instantiated, **attributes)
 
@@ -351,23 +432,27 @@ class Model(AttributeContainer, metaclass=MetaModel):
             item = items.pop()
             if range_key_attribute:
                 if isinstance(item, str):
-                    raise ValueError(f'Invalid key value {item!r}: '
-                                     'expected non-str iterable with exactly 2 elements (hash key, range key)')
+                    raise ValueError(
+                        f"Invalid key value {item!r}: "
+                        "expected non-str iterable with exactly 2 elements (hash key, range key)"
+                    )
                 try:
                     hash_key, range_key = item
                 except (TypeError, ValueError):
-                    raise ValueError(f'Invalid key value {item!r}: '
-                                     'expected iterable with exactly 2 elements (hash key, range key)')
+                    raise ValueError(
+                        f"Invalid key value {item!r}: "
+                        "expected iterable with exactly 2 elements (hash key, range key)"
+                    )
                 hash_key_ser, range_key_ser = cls._serialize_keys(hash_key, range_key)
-                keys_to_get.append({
-                    hash_key_attribute.attr_name: hash_key_ser,
-                    range_key_attribute.attr_name: range_key_ser,
-                })
+                keys_to_get.append(
+                    {
+                        hash_key_attribute.attr_name: hash_key_ser,
+                        range_key_attribute.attr_name: range_key_ser,
+                    }
+                )
             else:
                 hash_key_ser, _ = cls._serialize_keys(item)
-                keys_to_get.append({
-                    hash_key_attribute.attr_name: hash_key_ser
-                })
+                keys_to_get.append({hash_key_attribute.attr_name: hash_key_ser})
 
         while keys_to_get:
             page, unprocessed_keys = cls._batch_get_page(
@@ -395,7 +480,12 @@ class Model(AttributeContainer, metaclass=MetaModel):
         """
         return BatchWrite(cls, auto_commit=auto_commit)
 
-    def delete(self, condition: Optional[Condition] = None, *, add_version_condition: bool = True) -> Any:
+    def delete(
+        self,
+        condition: Optional[Condition] = None,
+        *,
+        add_version_condition: bool = True,
+    ) -> Any:
         """
         Deletes this object from DynamoDB.
 
@@ -410,9 +500,17 @@ class Model(AttributeContainer, metaclass=MetaModel):
         if add_version_condition and version_condition is not None:
             condition &= version_condition
 
-        return self._get_connection().delete_item(hk_value, range_key=rk_value, condition=condition)
+        return self._get_connection().delete_item(
+            hk_value, range_key=rk_value, condition=condition
+        )
 
-    def update(self, actions: List[Action], condition: Optional[Condition] = None, *, add_version_condition: bool = True) -> Any:
+    def update(
+        self,
+        actions: List[Action],
+        condition: Optional[Condition] = None,
+        *,
+        add_version_condition: bool = True,
+    ) -> Any:
         """
         Updates an item using the UpdateItem operation.
 
@@ -433,19 +531,36 @@ class Model(AttributeContainer, metaclass=MetaModel):
         if add_version_condition and version_condition is not None:
             condition &= version_condition
 
-        data = self._get_connection().update_item(hk_value, range_key=rk_value, return_values=ALL_NEW, condition=condition, actions=actions)
+        data = self._get_connection().update_item(
+            hk_value,
+            range_key=rk_value,
+            return_values=ALL_NEW,
+            condition=condition,
+            actions=actions,
+        )
         item_data = data[ATTRIBUTES]
         stored_cls = self._get_discriminator_class(item_data)
         if stored_cls and stored_cls != type(self):
-            raise ValueError("Cannot update this item from the returned class: {}".format(stored_cls.__name__))
+            raise ValueError(
+                "Cannot update this item from the returned class: {}".format(
+                    stored_cls.__name__
+                )
+            )
         self.deserialize(item_data)
         return data
 
-    def save(self, condition: Optional[Condition] = None, *, add_version_condition: bool = True) -> Dict[str, Any]:
+    def save(
+        self,
+        condition: Optional[Condition] = None,
+        *,
+        add_version_condition: bool = True,
+    ) -> Dict[str, Any]:
         """
         Save this object to dynamodb
         """
-        args, kwargs = self._get_save_args(condition=condition, add_version_condition=add_version_condition)
+        args, kwargs = self._get_save_args(
+            condition=condition, add_version_condition=add_version_condition
+        )
         data = self._get_connection().put_item(*args, **kwargs)
         self.update_local_version_attribute()
         return data
@@ -459,13 +574,19 @@ class Model(AttributeContainer, metaclass=MetaModel):
         :raises ModelInstance.DoesNotExist: if the object to be updated does not exist
         """
         hk_value, rk_value = self._get_hash_range_key_serialized_values()
-        attrs = self._get_connection().get_item(hk_value, range_key=rk_value, consistent_read=consistent_read)
+        attrs = self._get_connection().get_item(
+            hk_value, range_key=rk_value, consistent_read=consistent_read
+        )
         item_data = attrs.get(ITEM, None)
         if item_data is None:
             raise self.DoesNotExist("This item does not exist in the table.")
         stored_cls = self._get_discriminator_class(item_data)
         if stored_cls and stored_cls != type(self):
-            raise ValueError("Cannot refresh this item from the returned class: {}".format(stored_cls.__name__))
+            raise ValueError(
+                "Cannot refresh this item from the returned class: {}".format(
+                    stored_cls.__name__
+                )
+            )
         self.deserialize(item_data)
 
     def get_update_kwargs_from_instance(
@@ -482,7 +603,14 @@ class Model(AttributeContainer, metaclass=MetaModel):
         if add_version_condition and version_condition is not None:
             condition &= version_condition
 
-        return self._get_connection().get_operation_kwargs(hk_value, range_key=rk_value, key=KEY, actions=actions, condition=condition, return_values_on_condition_failure=return_values_on_condition_failure)
+        return self._get_connection().get_operation_kwargs(
+            hk_value,
+            range_key=rk_value,
+            key=KEY,
+            actions=actions,
+            condition=condition,
+            return_values_on_condition_failure=return_values_on_condition_failure,
+        )
 
     def get_delete_kwargs_from_instance(
         self,
@@ -497,7 +625,13 @@ class Model(AttributeContainer, metaclass=MetaModel):
         if add_version_condition and version_condition is not None:
             condition &= version_condition
 
-        return self._get_connection().get_operation_kwargs(hk_value, range_key=rk_value, key=KEY, condition=condition, return_values_on_condition_failure=return_values_on_condition_failure)
+        return self._get_connection().get_operation_kwargs(
+            hk_value,
+            range_key=rk_value,
+            key=KEY,
+            condition=condition,
+            return_values_on_condition_failure=return_values_on_condition_failure,
+        )
 
     def get_save_kwargs_from_instance(
         self,
@@ -505,8 +639,10 @@ class Model(AttributeContainer, metaclass=MetaModel):
         return_values_on_condition_failure: Optional[str] = None,
     ) -> Dict[str, Any]:
         args, save_kwargs = self._get_save_args(condition=condition)
-        save_kwargs['key'] = ITEM
-        save_kwargs['return_values_on_condition_failure'] = return_values_on_condition_failure
+        save_kwargs["key"] = ITEM
+        save_kwargs["return_values_on_condition_failure"] = (
+            return_values_on_condition_failure
+        )
         return self._get_connection().get_operation_kwargs(*args, **save_kwargs)
 
     @classmethod
@@ -518,9 +654,7 @@ class Model(AttributeContainer, metaclass=MetaModel):
     ) -> Dict[str, Any]:
         hash_key, range_key = cls._serialize_keys(hash_key, range_key)
         return cls._get_connection().get_operation_kwargs(
-            hash_key=hash_key,
-            range_key=range_key,
-            condition=condition
+            hash_key=hash_key, range_key=range_key, condition=condition
         )
 
     @classmethod
@@ -570,38 +704,58 @@ class Model(AttributeContainer, metaclass=MetaModel):
     @classmethod
     def count(
         cls: Type[_T],
-        hash_key: Optional[_HashKeyQueryType] = None,
+        hash_key: Optional[_KeyType] = None,
         range_key_condition: Optional[Condition] = None,
         filter_condition: Optional[Condition] = None,
         consistent_read: bool = False,
         index_name: Optional[str] = None,
         limit: Optional[int] = None,
         rate_limit: Optional[float] = None,
+        hash_keys: Optional[_HashKeysQueryType] = None,
     ) -> int:
         """
         Provides a filtered count
 
         :param hash_key: The hash key to query. Can be None.
+        :param hash_keys: Named hash key values for indexes with multiple hash key attributes.
         :param range_key_condition: Condition for range key
         :param filter_condition: Condition used to restrict the query results
         :param consistent_read: If True, a consistent read is performed
         :param index_name: If set, then this index is used
         :param rate_limit: If set then consumed capacity will be limited to this amount per second
         """
-        if hash_key is None:
+        if hash_key is None and hash_keys is None:
+            if index_name:
+                raise ValueError(
+                    "A hash_key or hash_keys must be given to query an index"
+                )
             if filter_condition is not None:
-                raise ValueError('A hash_key must be given to use filters')
+                raise ValueError("A hash_key must be given to use filters")
             return cls.describe_table().get(ITEM_COUNT)
 
+        serialized_hash_keys = None
         if index_name:
-            hash_key = cls._indexes[index_name]._serialize_hash_key_values(hash_key)
+            index = cls._indexes[index_name]
+            index._validate_range_key_condition(range_key_condition)
+            serialized_hash_key = index._serialize_hash_key_values(
+                hash_key, hash_keys=hash_keys
+            )
+            if isinstance(serialized_hash_key, dict):
+                serialized_hash_keys = serialized_hash_key
+                hash_key = None
+            else:
+                hash_key = serialized_hash_key
         else:
+            if hash_keys is not None:
+                raise ValueError("hash_keys can only be used with an index")
             hash_key = cls._serialize_keys(hash_key)[0]
 
         # If this class has a discriminator attribute, filter the query to only return instances of this class.
         discriminator_attr = cls._get_discriminator_attribute()
         if discriminator_attr:
-            filter_condition &= discriminator_attr.is_in(*discriminator_attr.get_registered_subclasses(cls))
+            filter_condition &= discriminator_attr.is_in(
+                *discriminator_attr.get_registered_subclasses(cls)
+            )
 
         query_args = (hash_key,)
         query_kwargs = dict(
@@ -610,7 +764,8 @@ class Model(AttributeContainer, metaclass=MetaModel):
             index_name=index_name,
             consistent_read=consistent_read,
             limit=limit,
-            select=COUNT
+            select=COUNT,
+            hash_keys=serialized_hash_keys,
         )
 
         result_iterator: ResultIterator[_T] = ResultIterator(
@@ -629,7 +784,7 @@ class Model(AttributeContainer, metaclass=MetaModel):
     @classmethod
     def query(
         cls: Type[_T],
-        hash_key: _HashKeyQueryType,
+        hash_key: Optional[_KeyType] = None,
         range_key_condition: Optional[Condition] = None,
         filter_condition: Optional[Condition] = None,
         consistent_read: bool = False,
@@ -640,11 +795,13 @@ class Model(AttributeContainer, metaclass=MetaModel):
         attributes_to_get: Optional[Iterable[str]] = None,
         page_size: Optional[int] = None,
         rate_limit: Optional[float] = None,
+        hash_keys: Optional[_HashKeysQueryType] = None,
     ) -> ResultIterator[_T]:
         """
         Provides a high level query API
 
-        :param hash_key: The hash key to query
+        :param hash_key: The hash key to query.
+        :param hash_keys: Named hash key values for indexes with multiple hash key attributes.
         :param range_key_condition: Condition for range key
         :param filter_condition: Condition used to restrict the query results
         :param consistent_read: If True, a consistent read is performed
@@ -657,15 +814,32 @@ class Model(AttributeContainer, metaclass=MetaModel):
         :param page_size: Page size of the query to DynamoDB
         :param rate_limit: If set then consumed capacity will be limited to this amount per second
         """
+        if hash_key is None and hash_keys is None:
+            raise ValueError("A hash_key or hash_keys must be given to query")
+
+        serialized_hash_keys = None
         if index_name:
-            hash_key = cls._indexes[index_name]._serialize_hash_key_values(hash_key)
+            index = cls._indexes[index_name]
+            index._validate_range_key_condition(range_key_condition)
+            serialized_hash_key = index._serialize_hash_key_values(
+                hash_key, hash_keys=hash_keys
+            )
+            if isinstance(serialized_hash_key, dict):
+                serialized_hash_keys = serialized_hash_key
+                hash_key = None
+            else:
+                hash_key = serialized_hash_key
         else:
+            if hash_keys is not None:
+                raise ValueError("hash_keys can only be used with an index")
             hash_key = cls._serialize_keys(hash_key)[0]
 
         # If this class has a discriminator attribute, filter the query to only return instances of this class.
         discriminator_attr = cls._get_discriminator_attribute()
         if discriminator_attr:
-            filter_condition &= discriminator_attr.is_in(*discriminator_attr.get_registered_subclasses(cls))
+            filter_condition &= discriminator_attr.is_in(
+                *discriminator_attr.get_registered_subclasses(cls)
+            )
 
         if page_size is None:
             page_size = limit
@@ -680,6 +854,7 @@ class Model(AttributeContainer, metaclass=MetaModel):
             scan_index_forward=scan_index_forward,
             limit=page_size,
             attributes_to_get=attributes_to_get,
+            hash_keys=serialized_hash_keys,
         )
 
         return ResultIterator(
@@ -722,7 +897,9 @@ class Model(AttributeContainer, metaclass=MetaModel):
         # If this class has a discriminator attribute, filter the scan to only return instances of this class.
         discriminator_attr = cls._get_discriminator_attribute()
         if discriminator_attr:
-            filter_condition &= discriminator_attr.is_in(*discriminator_attr.get_registered_subclasses(cls))
+            filter_condition &= discriminator_attr.is_in(
+                *discriminator_attr.get_registered_subclasses(cls)
+            )
 
         if page_size is None:
             page_size = limit
@@ -736,7 +913,7 @@ class Model(AttributeContainer, metaclass=MetaModel):
             total_segments=total_segments,
             consistent_read=consistent_read,
             index_name=index_name,
-            attributes_to_get=attributes_to_get
+            attributes_to_get=attributes_to_get,
         )
 
         return ResultIterator(
@@ -800,33 +977,31 @@ class Model(AttributeContainer, metaclass=MetaModel):
         if not cls.exists():
             schema = cls._get_schema()
             operation_kwargs: Dict[str, Any] = {
-                'attribute_definitions': schema['attribute_definitions'],
-                'key_schema': schema['key_schema'],
-                'global_secondary_indexes': schema['global_secondary_indexes'],
-                'local_secondary_indexes': schema['local_secondary_indexes'],
+                "attribute_definitions": schema["attribute_definitions"],
+                "key_schema": schema["key_schema"],
+                "global_secondary_indexes": schema["global_secondary_indexes"],
+                "local_secondary_indexes": schema["local_secondary_indexes"],
             }
-            if hasattr(cls.Meta, 'read_capacity_units'):
-                operation_kwargs['read_capacity_units'] = cls.Meta.read_capacity_units
-            if hasattr(cls.Meta, 'write_capacity_units'):
-                operation_kwargs['write_capacity_units'] = cls.Meta.write_capacity_units
-            if hasattr(cls.Meta, 'stream_view_type'):
-                operation_kwargs['stream_specification'] = {
-                    'stream_enabled': True,
-                    'stream_view_type': cls.Meta.stream_view_type
+            if hasattr(cls.Meta, "read_capacity_units"):
+                operation_kwargs["read_capacity_units"] = cls.Meta.read_capacity_units
+            if hasattr(cls.Meta, "write_capacity_units"):
+                operation_kwargs["write_capacity_units"] = cls.Meta.write_capacity_units
+            if hasattr(cls.Meta, "stream_view_type"):
+                operation_kwargs["stream_specification"] = {
+                    "stream_enabled": True,
+                    "stream_view_type": cls.Meta.stream_view_type,
                 }
-            if hasattr(cls.Meta, 'billing_mode'):
-                operation_kwargs['billing_mode'] = cls.Meta.billing_mode
-            if hasattr(cls.Meta, 'tags'):
-                operation_kwargs['tags'] = cls.Meta.tags
+            if hasattr(cls.Meta, "billing_mode"):
+                operation_kwargs["billing_mode"] = cls.Meta.billing_mode
+            if hasattr(cls.Meta, "tags"):
+                operation_kwargs["tags"] = cls.Meta.tags
             if read_capacity_units is not None:
-                operation_kwargs['read_capacity_units'] = read_capacity_units
+                operation_kwargs["read_capacity_units"] = read_capacity_units
             if write_capacity_units is not None:
-                operation_kwargs['write_capacity_units'] = write_capacity_units
+                operation_kwargs["write_capacity_units"] = write_capacity_units
             if billing_mode is not None:
-                operation_kwargs['billing_mode'] = billing_mode
-            cls._get_connection().create_table(
-                **operation_kwargs
-            )
+                operation_kwargs["billing_mode"] = billing_mode
+            cls._get_connection().create_table(**operation_kwargs)
         if wait:
             while True:
                 status = cls._get_connection().describe_table()
@@ -855,7 +1030,9 @@ class Model(AttributeContainer, metaclass=MetaModel):
                 cls._get_connection().update_time_to_live(ttl_attribute.attr_name)
             except Exception:
                 if ignore_update_ttl_errors:
-                    log.info("Unable to update the TTL for {}".format(cls.Meta.table_name))
+                    log.info(
+                        "Unable to update the TTL for {}".format(cls.Meta.table_name)
+                    )
                 else:
                     raise
 
@@ -867,21 +1044,22 @@ class Model(AttributeContainer, metaclass=MetaModel):
         """
 
         schema: ModelSchema = {
-            'attribute_definitions': [],
-            'key_schema': [],
-            'global_secondary_indexes': [],
-            'local_secondary_indexes': [],
+            "attribute_definitions": [],
+            "key_schema": [],
+            "global_secondary_indexes": [],
+            "local_secondary_indexes": [],
         }
         for attr_name, attr_cls in cls.get_attributes().items():
             if attr_cls.is_hash_key or attr_cls.is_range_key:
-                schema['attribute_definitions'].append({
-                    ATTR_NAME: attr_cls.attr_name,
-                    ATTR_TYPE: attr_cls.attr_type
-                })
-                schema['key_schema'].append({
-                    KEY_TYPE: HASH if attr_cls.is_hash_key else RANGE,
-                    ATTR_NAME: attr_cls.attr_name
-                })
+                schema["attribute_definitions"].append(
+                    {ATTR_NAME: attr_cls.attr_name, ATTR_TYPE: attr_cls.attr_type}
+                )
+                schema["key_schema"].append(
+                    {
+                        KEY_TYPE: HASH if attr_cls.is_hash_key else RANGE,
+                        ATTR_NAME: attr_cls.attr_name,
+                    }
+                )
 
         indexes = cls._indexes.copy()
         # add indexes from derived classes that we might initialize
@@ -895,7 +1073,12 @@ class Model(AttributeContainer, metaclass=MetaModel):
 
         return schema
 
-    def _get_save_args(self, condition: Optional[Condition] = None, *, add_version_condition: bool = True) -> Tuple[Iterable[Any], Dict[str, Any]]:
+    def _get_save_args(
+        self,
+        condition: Optional[Condition] = None,
+        *,
+        add_version_condition: bool = True,
+    ) -> Tuple[Iterable[Any], Dict[str, Any]]:
         """
         Gets the proper *args, **kwargs for saving and retrieving this object
 
@@ -908,20 +1091,24 @@ class Model(AttributeContainer, metaclass=MetaModel):
         """
         attribute_values = self.serialize(null_check=True)
         hash_key_attribute = self._hash_key_attribute()
-        hash_key = attribute_values.pop(hash_key_attribute.attr_name, {}).get(hash_key_attribute.attr_type)
+        hash_key = attribute_values.pop(hash_key_attribute.attr_name, {}).get(
+            hash_key_attribute.attr_type
+        )
         range_key = None
         range_key_attribute = self._range_key_attribute()
         if range_key_attribute:
-            range_key = attribute_values.pop(range_key_attribute.attr_name, {}).get(range_key_attribute.attr_type)
-        args = (hash_key, )
+            range_key = attribute_values.pop(range_key_attribute.attr_name, {}).get(
+                range_key_attribute.attr_type
+            )
+        args = (hash_key,)
         kwargs = {}
         if range_key is not None:
-            kwargs['range_key'] = range_key
+            kwargs["range_key"] = range_key
         version_condition = self._handle_version_attribute(attributes=attribute_values)
         if add_version_condition and version_condition is not None:
             condition &= version_condition
-        kwargs['attributes'] = attribute_values
-        kwargs['condition'] = condition
+        kwargs["attributes"] = attribute_values
+        kwargs["condition"] = condition
         return args, kwargs
 
     def _get_hash_range_key_serialized_values(self) -> Tuple[Any, Optional[Any]]:
@@ -941,7 +1128,12 @@ class Model(AttributeContainer, metaclass=MetaModel):
 
         return hk_serialized_value, rk_serialized_value
 
-    def _handle_version_attribute(self, *, attributes: Optional[Dict[str, Any]] = None, actions: Optional[List[Action]] = None) -> Optional[Condition]:
+    def _handle_version_attribute(
+        self,
+        *,
+        attributes: Optional[Dict[str, Any]] = None,
+        actions: Optional[List[Action]] = None,
+    ) -> Optional[Condition]:
         """
         Handles modifying the request to set or increment the version attribute.
         """
@@ -954,13 +1146,17 @@ class Model(AttributeContainer, metaclass=MetaModel):
         if value is not None:
             condition = version_attribute == value
             if attributes is not None:
-                attributes[version_attribute.attr_name] = self._serialize_value(version_attribute, value + 1)
+                attributes[version_attribute.attr_name] = self._serialize_value(
+                    version_attribute, value + 1
+                )
             if actions is not None:
                 actions.append(version_attribute.add(1))
         else:
             condition = version_attribute.does_not_exist()
             if attributes is not None:
-                attributes[version_attribute.attr_name] = self._serialize_value(version_attribute, 1)
+                attributes[version_attribute.attr_name] = self._serialize_value(
+                    version_attribute, 1
+                )
             if actions is not None:
                 actions.append(version_attribute.set(1))
 
@@ -1027,10 +1223,14 @@ class Model(AttributeContainer, metaclass=MetaModel):
         """
         log.debug("Fetching a BatchGetItem page")
         data = cls._get_connection().batch_get_item(
-            keys_to_get, consistent_read=consistent_read, attributes_to_get=attributes_to_get,
+            keys_to_get,
+            consistent_read=consistent_read,
+            attributes_to_get=attributes_to_get,
         )
         item_data = data.get(RESPONSES).get(cls.Meta.table_name)  # type: ignore
-        unprocessed_items = data.get(UNPROCESSED_KEYS).get(cls.Meta.table_name, {}).get(KEYS, None)  # type: ignore
+        unprocessed_items = (
+            data.get(UNPROCESSED_KEYS).get(cls.Meta.table_name, {}).get(KEYS, None)
+        )  # type: ignore
         return item_data, unprocessed_items
 
     @classmethod
@@ -1040,55 +1240,61 @@ class Model(AttributeContainer, metaclass=MetaModel):
         """
         if not hasattr(cls, "Meta"):
             raise AttributeError(
-                'As of v1.0 PynamoDB Models require a `Meta` class.\n'
-                'Model: {}.{}\n'
-                'See https://pynamodb.readthedocs.io/en/latest/release_notes.html\n'.format(
-                    cls.__module__, cls.__name__,
+                "As of v1.0 PynamoDB Models require a `Meta` class.\n"
+                "Model: {}.{}\n"
+                "See https://pynamodb.readthedocs.io/en/latest/release_notes.html\n".format(
+                    cls.__module__,
+                    cls.__name__,
                 ),
             )
         elif not hasattr(cls.Meta, "table_name") or cls.Meta.table_name is None:
             raise AttributeError(
-                'As of v1.0 PynamoDB Models must have a table_name\n'
-                'Model: {}.{}\n'
-                'See https://pynamodb.readthedocs.io/en/latest/release_notes.html'.format(
-                    cls.__module__, cls.__name__,
+                "As of v1.0 PynamoDB Models must have a table_name\n"
+                "Model: {}.{}\n"
+                "See https://pynamodb.readthedocs.io/en/latest/release_notes.html".format(
+                    cls.__module__,
+                    cls.__name__,
                 ),
             )
         # For now we just check that the connection exists and (in the case of model inheritance)
         # points to the same table. In the future we should update the connection if any of the attributes differ.
         if cls._connection is None or cls._connection.table_name != cls.Meta.table_name:
             schema = cls._get_schema()
-            meta_table = MetaTable({
-                constants.TABLE_NAME: cls.Meta.table_name,
-                constants.KEY_SCHEMA: schema['key_schema'],
-                constants.ATTR_DEFINITIONS: schema['attribute_definitions'],
-                constants.GLOBAL_SECONDARY_INDEXES: [
-                    {
-                        constants.INDEX_NAME: index_schema['index_name'],
-                        constants.KEY_SCHEMA: index_schema['key_schema'],
-                    }
-                    for index_schema in schema['global_secondary_indexes']
-                ],
-                constants.LOCAL_SECONDARY_INDEXES: [
-                    {
-                        constants.INDEX_NAME: index_schema['index_name'],
-                        constants.KEY_SCHEMA: index_schema['key_schema'],
-                    }
-                    for index_schema in schema['local_secondary_indexes']
-                ],
-            })
-            cls._connection = TableConnection(cls.Meta.table_name,
-                                              meta_table=meta_table,
-                                              region=cls.Meta.region,
-                                              host=cls.Meta.host,
-                                              connect_timeout_seconds=cls.Meta.connect_timeout_seconds,
-                                              read_timeout_seconds=cls.Meta.read_timeout_seconds,
-                                              max_retry_attempts=cls.Meta.max_retry_attempts,
-                                              max_pool_connections=cls.Meta.max_pool_connections,
-                                              extra_headers=cls.Meta.extra_headers,
-                                              aws_access_key_id=cls.Meta.aws_access_key_id,
-                                              aws_secret_access_key=cls.Meta.aws_secret_access_key,
-                                              aws_session_token=cls.Meta.aws_session_token)
+            meta_table = MetaTable(
+                {
+                    constants.TABLE_NAME: cls.Meta.table_name,
+                    constants.KEY_SCHEMA: schema["key_schema"],
+                    constants.ATTR_DEFINITIONS: schema["attribute_definitions"],
+                    constants.GLOBAL_SECONDARY_INDEXES: [
+                        {
+                            constants.INDEX_NAME: index_schema["index_name"],
+                            constants.KEY_SCHEMA: index_schema["key_schema"],
+                        }
+                        for index_schema in schema["global_secondary_indexes"]
+                    ],
+                    constants.LOCAL_SECONDARY_INDEXES: [
+                        {
+                            constants.INDEX_NAME: index_schema["index_name"],
+                            constants.KEY_SCHEMA: index_schema["key_schema"],
+                        }
+                        for index_schema in schema["local_secondary_indexes"]
+                    ],
+                }
+            )
+            cls._connection = TableConnection(
+                cls.Meta.table_name,
+                meta_table=meta_table,
+                region=cls.Meta.region,
+                host=cls.Meta.host,
+                connect_timeout_seconds=cls.Meta.connect_timeout_seconds,
+                read_timeout_seconds=cls.Meta.read_timeout_seconds,
+                max_retry_attempts=cls.Meta.max_retry_attempts,
+                max_pool_connections=cls.Meta.max_pool_connections,
+                extra_headers=cls.Meta.extra_headers,
+                aws_access_key_id=cls.Meta.aws_access_key_id,
+                aws_secret_access_key=cls.Meta.aws_secret_access_key,
+                aws_session_token=cls.Meta.aws_session_token,
+            )
         return cls._connection
 
     @classmethod
@@ -1149,6 +1355,7 @@ class _ModelFuture(Generic[_T]):
     For example: when performing a TransactGet request, this is a stand-in for a model that will be returned
     when the operation is complete
     """
+
     def __init__(self, model_cls: Type[_T]) -> None:
         self._model_cls = model_cls
         self._model: Optional[_T] = None
