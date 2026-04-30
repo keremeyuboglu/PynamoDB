@@ -2611,12 +2611,12 @@ class ModelTestCase(TestCase):
                     'AttributeName': 'user_name'
                 },
                 {
-                    'AttributeType': 'S',
-                    'AttributeName': 'email'
-                },
-                {
                     'AttributeType': 'NS',
                     'AttributeName': 'numbers'
+                },
+                {
+                    'AttributeType': 'S',
+                    'AttributeName': 'email'
                 },
             ]
         )

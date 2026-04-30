@@ -1,33 +1,16 @@
 """
 PynamoDB Indexes
 """
+from inspect import getmembers
+from typing import TYPE_CHECKING, Any, Dict, Generic, List, Mapping, Optional, Type, TypeVar, Union
 
-from typing import (
-    TYPE_CHECKING,
-    Any,
-    Dict,
-    Generic,
-    List,
-    Mapping,
-    Optional,
-    Type,
-    TypeVar,
-    Union,
-)
-
-from pynamodb._schema import GlobalSecondaryIndexSchema, IndexSchema, ModelSchema
+from pynamodb._schema import IndexSchema, GlobalSecondaryIndexSchema
+from pynamodb._schema import ModelSchema
 from pynamodb.attributes import Attribute
 from pynamodb.constants import (
-    ALL,
-    ATTR_NAME,
-    ATTR_TYPE,
-    INCLUDE,
-    KEY_TYPE,
-    KEYS_ONLY,
-    NON_KEY_ATTRIBUTES,
-    PROJECTION_TYPE,
-    READ_CAPACITY_UNITS,
-    WRITE_CAPACITY_UNITS,
+    INCLUDE, ALL, KEYS_ONLY, ATTR_NAME, ATTR_TYPE, KEY_TYPE,
+    PROJECTION_TYPE, NON_KEY_ATTRIBUTES,
+    READ_CAPACITY_UNITS, WRITE_CAPACITY_UNITS,
 )
 from pynamodb.expressions.condition import Condition
 from pynamodb.pagination import ResultIterator
@@ -77,9 +60,7 @@ class Index(Generic[_M]):
         if self.Meta is None:
             raise ValueError('Indexes require a Meta class for settings')
         if not hasattr(self.Meta, 'projection'):
-            raise ValueError(
-                'No projection defined, define a projection for this class'
-            )
+            raise ValueError('No projection defined, define a projection for this class')
 
     def __set_name__(self, owner: Type[_M], name: str):
         if not hasattr(self.Meta, 'index_name'):
@@ -415,19 +396,6 @@ class Index(Generic[_M]):
         hash_key_attributes = cls._hash_key_attributes()
         range_key_attributes = cls._range_key_attributes()
 
-        for attr_cls in hash_key_attributes:
-            schema['attribute_definitions'].append(
-                {
-                    ATTR_NAME: attr_cls.attr_name,
-                    ATTR_TYPE: attr_cls.attr_type,
-                }
-            )
-            schema['key_schema'].append(
-                {
-                    ATTR_NAME: attr_cls.attr_name,
-                    KEY_TYPE: HASH,
-                }
-            )
         for attr_cls in range_key_attributes:
             schema['attribute_definitions'].append(
                 {
@@ -435,6 +403,21 @@ class Index(Generic[_M]):
                     ATTR_TYPE: attr_cls.attr_type,
                 }
             )
+        for attr_cls in hash_key_attributes:
+            schema['attribute_definitions'].append(
+                {
+                    ATTR_NAME: attr_cls.attr_name,
+                    ATTR_TYPE: attr_cls.attr_type,
+                }
+            )
+        for attr_cls in hash_key_attributes:
+            schema['key_schema'].append(
+                {
+                    ATTR_NAME: attr_cls.attr_name,
+                    KEY_TYPE: HASH,
+                }
+            )
+        for attr_cls in range_key_attributes:
             schema['key_schema'].append(
                 {
                     ATTR_NAME: attr_cls.attr_name,

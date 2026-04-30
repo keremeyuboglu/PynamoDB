@@ -239,6 +239,7 @@ class TableConnection:
     def query(
         self,
         hash_key: Optional[Any] = None,
+        hash_keys: Optional[Mapping[str, Any]] = None,
         range_key_condition: Optional[Condition] = None,
         filter_condition: Optional[Any] = None,
         attributes_to_get: Optional[Any] = None,
@@ -249,13 +250,9 @@ class TableConnection:
         return_consumed_capacity: Optional[str] = None,
         scan_index_forward: Optional[bool] = None,
         select: Optional[str] = None,
-        hash_keys: Optional[Mapping[str, Any]] = None,
     ) -> Dict:
         """
         Performs the Query operation and returns the result
-
-        :param hash_key: The hash key to query. Can be None when ``hash_keys`` is provided.
-        :param hash_keys: Named hash key values for indexes with multiple hash key attributes.
         """
         return self.connection.query(
             self.table_name,
@@ -304,7 +301,8 @@ class TableConnection:
             self.table_name,
             read_capacity_units=read_capacity_units,
             write_capacity_units=write_capacity_units,
-            global_secondary_index_updates=global_secondary_index_updates)
+            global_secondary_index_updates=global_secondary_index_updates,
+        )
 
     def create_table(
         self,
@@ -331,5 +329,5 @@ class TableConnection:
             local_secondary_indexes=local_secondary_indexes,
             stream_specification=stream_specification,
             billing_mode=billing_mode,
-            tags=tags
+            tags=tags,
         )
