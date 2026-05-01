@@ -7,23 +7,22 @@ from typing import TYPE_CHECKING
 
 from pynamodb._schema import IndexSchema, GlobalSecondaryIndexSchema
 from pynamodb._schema import ModelSchema
-from pynamodb.attributes import Attribute
 from pynamodb.constants import (
     INCLUDE, ALL, KEYS_ONLY, ATTR_NAME, ATTR_TYPE, KEY_TYPE,
     PROJECTION_TYPE, NON_KEY_ATTRIBUTES,
     READ_CAPACITY_UNITS, WRITE_CAPACITY_UNITS,
 )
+from pynamodb.attributes import Attribute
 from pynamodb.expressions.condition import Condition
 from pynamodb.pagination import ResultIterator
 from pynamodb.types import HASH, RANGE
-
 if TYPE_CHECKING:
     from pynamodb.models import Model
 
 _KeyType = Any
 _HashKeysInputType = Mapping[str, _KeyType]
 _SerializedHashKeyType = Union[_KeyType, Dict[str, _KeyType]]
-_M = TypeVar("_M", bound="Model")
+_M = TypeVar('_M', bound='Model')
 
 
 class Index(Generic[_M]):
@@ -32,16 +31,17 @@ class Index(Generic[_M]):
     """
     Meta: Any = None
     _model: _M
+
     @staticmethod
     def _get_attributes_in_declaration_order(
-        index_cls: Type["Index"],
+        index_cls: Type['Index'],
     ) -> Dict[str, Attribute]:
         """
         Returns attributes in declaration order, respecting overrides.
         """
         attributes: Dict[str, Attribute] = {}
         for base in reversed(index_cls.__mro__):
-            for name, attribute in getattr(base, "__dict__", {}).items():
+            for name, attribute in getattr(base, '__dict__', {}).items():
                 if name in attributes:
                     del attributes[name]
                 if isinstance(attribute, Attribute):
@@ -211,7 +211,9 @@ class Index(Generic[_M]):
         conditions_by_key: Dict[str, Condition] = {}
         for condition in Index._flatten_and_conditions(range_key_condition):
             if condition.operator not in valid_operators:
-                raise ValueError(f"{context} range_key_condition uses unsupported range key operator: {condition.operator}")
+                raise ValueError(
+                    f"{context} range_key_condition uses unsupported range key operator: {condition.operator}"
+                )
             key_name = Index._condition_key_name(condition)
             if key_name is None or key_name not in range_keynames:
                 raise ValueError(f"{context} range_key_condition must only use range keys: " + ", ".join(range_keynames))
@@ -231,7 +233,10 @@ class Index(Generic[_M]):
             if key_name not in conditions_by_key
         ]
         if missing_prefix_keys:
-            raise ValueError(f"{context} range_key_condition must include equality conditions for preceding range keys: " + ", ".join(missing_prefix_keys))
+            raise ValueError(
+                f"{context} range_key_condition must include equality conditions for preceding range keys: "
+                + ", ".join(missing_prefix_keys)
+            )
 
         non_equal_prefix_keys = [
             key_name
@@ -239,7 +244,10 @@ class Index(Generic[_M]):
             if conditions_by_key[key_name].operator != "="
         ]
         if non_equal_prefix_keys:
-            raise ValueError(f"{context} range_key_condition must use equality for preceding range keys: " + ", ".join(non_equal_prefix_keys))
+            raise ValueError(
+                f"{context} range_key_condition must use equality for preceding range keys: "
+                + ", ".join(non_equal_prefix_keys)
+            )
 
         ordered_conditions = [
             conditions_by_key[key_name]
@@ -374,12 +382,12 @@ class Index(Generic[_M]):
         Returns the schema for this index
         """
         schema: IndexSchema = {
-            "index_name": cls.Meta.index_name,
-            "key_schema": [],
-            "projection": {
+            'index_name': cls.Meta.index_name,
+            'key_schema': [],
+            'projection': {
                 PROJECTION_TYPE: cls.Meta.projection.projection_type,
             },
-            "attribute_definitions": [],
+            'attribute_definitions': [],
         }
 
         cls._validate_key_attributes()
@@ -388,37 +396,27 @@ class Index(Generic[_M]):
         range_key_attributes = cls._range_key_attributes()
 
         for attr_cls in range_key_attributes:
-            schema["attribute_definitions"].append(
-                {
-                    ATTR_NAME: attr_cls.attr_name,
-                    ATTR_TYPE: attr_cls.attr_type,
-                }
-            )
+            schema['attribute_definitions'].append({
+                ATTR_NAME: attr_cls.attr_name,
+                ATTR_TYPE: attr_cls.attr_type,
+            })
         for attr_cls in hash_key_attributes:
-            schema["attribute_definitions"].append(
-                {
-                    ATTR_NAME: attr_cls.attr_name,
-                    ATTR_TYPE: attr_cls.attr_type,
-                }
-            )
+            schema['attribute_definitions'].append({
+                ATTR_NAME: attr_cls.attr_name,
+                ATTR_TYPE: attr_cls.attr_type,
+            })
         for attr_cls in hash_key_attributes:
-            schema["key_schema"].append(
-                {
-                    ATTR_NAME: attr_cls.attr_name,
-                    KEY_TYPE: HASH,
-                }
-            )
+            schema['key_schema'].append({
+                ATTR_NAME: attr_cls.attr_name,
+                KEY_TYPE: HASH,
+            })
         for attr_cls in range_key_attributes:
-            schema["key_schema"].append(
-                {
-                    ATTR_NAME: attr_cls.attr_name,
-                    KEY_TYPE: RANGE,
-                }
-            )
+            schema['key_schema'].append({
+                ATTR_NAME: attr_cls.attr_name,
+                KEY_TYPE: RANGE,
+            })
         if cls.Meta.projection.non_key_attributes:
-            schema["projection"][NON_KEY_ATTRIBUTES] = (
-                cls.Meta.projection.non_key_attributes
-            )
+            schema['projection'][NON_KEY_ATTRIBUTES] = cls.Meta.projection.non_key_attributes
         return schema
 
 
@@ -426,7 +424,6 @@ class GlobalSecondaryIndex(Index[_M]):
     """
     A global secondary index
     """
-
     @classmethod
     def _validate_key_attributes(cls) -> None:
         hash_keys = cls._hash_key_attributes()
@@ -440,24 +437,20 @@ class GlobalSecondaryIndex(Index[_M]):
     def _update_model_schema(cls, schema: ModelSchema) -> None:
         index_schema: GlobalSecondaryIndexSchema = {
             **cls._get_schema(),  # type:ignore[misc]  # https://github.com/python/mypy/pull/13353
-            "provisioned_throughput": {},
+            'provisioned_throughput': {},
         }
 
-        if hasattr(cls.Meta, "read_capacity_units"):
-            index_schema["provisioned_throughput"][READ_CAPACITY_UNITS] = (
-                cls.Meta.read_capacity_units
-            )
-        if hasattr(cls.Meta, "write_capacity_units"):
-            index_schema["provisioned_throughput"][WRITE_CAPACITY_UNITS] = (
-                cls.Meta.write_capacity_units
-            )
+        if hasattr(cls.Meta, 'read_capacity_units'):
+            index_schema['provisioned_throughput'][READ_CAPACITY_UNITS] = cls.Meta.read_capacity_units
+        if hasattr(cls.Meta, 'write_capacity_units'):
+            index_schema['provisioned_throughput'][WRITE_CAPACITY_UNITS] = cls.Meta.write_capacity_units
 
-        schema["global_secondary_indexes"].append(index_schema)
+        schema['global_secondary_indexes'].append(index_schema)
         # With polymorphism, indexes can use the same attribute, e.g. index1 on (thread_id, created_at)
         # and index2 on (thread_id, updated_at). We need to deduplicate.
-        for attr_def in index_schema["attribute_definitions"]:
-            if attr_def not in schema["attribute_definitions"]:
-                schema["attribute_definitions"].append(attr_def)
+        for attr_def in index_schema['attribute_definitions']:
+            if attr_def not in schema['attribute_definitions']:
+                schema['attribute_definitions'].append(attr_def)
 
 
 class LocalSecondaryIndex(Index[_M]):
@@ -477,15 +470,16 @@ class LocalSecondaryIndex(Index[_M]):
     @classmethod
     def _update_model_schema(cls, schema: ModelSchema) -> None:
         index_schema = cls._get_schema()
-        schema["local_secondary_indexes"].append(index_schema)
+        schema['local_secondary_indexes'].append(index_schema)
         # With polymorphism, indexes can use the same attribute, e.g. index1 on (thread_id, created_at)
         # and index2 on (thread_id, updated_at). We need to deduplicate.
-        for attr_def in index_schema["attribute_definitions"]:
-            if attr_def not in schema["attribute_definitions"]:
-                schema["attribute_definitions"].append(attr_def)
+        for attr_def in index_schema['attribute_definitions']:
+            if attr_def not in schema['attribute_definitions']:
+                schema['attribute_definitions'].append(attr_def)
 
 
-class Projection(object):
+
+class Projection:
     """
     A class for presenting projections
     """
