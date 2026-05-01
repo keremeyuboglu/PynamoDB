@@ -78,9 +78,6 @@ class Index(Generic[_M]):
     ) -> int:
         """
         Count on an index
-
-        :param hash_key: The hash key to query. Can be None when ``hash_keys`` is provided.
-        :param hash_keys: Named hash key values for indexes with multiple hash key attributes.
         """
         return self._model.count(
             hash_key,
@@ -109,9 +106,6 @@ class Index(Generic[_M]):
     ) -> ResultIterator[_M]:
         """
         Queries an index
-
-        :param hash_key: The hash key to query. Can be None when ``hash_keys`` is provided.
-        :param hash_keys: Named hash key values for indexes with multiple hash key attributes.
         """
         return self._model.query(
             hash_key,

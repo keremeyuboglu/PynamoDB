@@ -287,11 +287,11 @@ class Model(AttributeContainer, metaclass=MetaModel):
     _indexes: Dict[str, Index]
 
     def __init__(
-            self,
-            hash_key: Optional[_KeyType] = None,
-            range_key: Optional[_KeyType] = None,
-            _user_instantiated: bool = True,
-            **attributes: Any,
+        self,
+        hash_key: Optional[_KeyType] = None,
+        range_key: Optional[_KeyType] = None,
+        _user_instantiated: bool = True,
+        **attributes: Any,
     ) -> None:
         """
         :param hash_key: Required. The hash key for this object.
@@ -314,10 +314,10 @@ class Model(AttributeContainer, metaclass=MetaModel):
 
     @classmethod
     def batch_get(
-            cls: Type[_T],
-            items: Iterable[Union[_KeyType, Iterable[_KeyType]]],
-            consistent_read: Optional[bool] = None,
-            attributes_to_get: Optional[Sequence[str]] = None,
+        cls: Type[_T],
+        items: Iterable[Union[_KeyType, Iterable[_KeyType]]],
+        consistent_read: Optional[bool] = None,
+        attributes_to_get: Optional[Sequence[str]] = None,
     ) -> Iterator[_T]:
         """
         BatchGetItem for this model
@@ -395,10 +395,10 @@ class Model(AttributeContainer, metaclass=MetaModel):
         return BatchWrite(cls, auto_commit=auto_commit)
 
     def delete(
-            self,
-            condition: Optional[Condition] = None,
-            *,
-            add_version_condition: bool = True,
+        self,
+        condition: Optional[Condition] = None,
+        *,
+        add_version_condition: bool = True,
     ) -> Any:
         """
         Deletes this object from DynamoDB.
@@ -419,11 +419,11 @@ class Model(AttributeContainer, metaclass=MetaModel):
         )
 
     def update(
-            self,
-            actions: List[Action],
-            condition: Optional[Condition] = None,
-            *,
-            add_version_condition: bool = True,
+        self,
+        actions: List[Action],
+        condition: Optional[Condition] = None,
+        *,
+        add_version_condition: bool = True,
     ) -> Any:
         """
         Updates an item using the UpdateItem operation.
@@ -464,10 +464,10 @@ class Model(AttributeContainer, metaclass=MetaModel):
         return data
 
     def save(
-            self,
-            condition: Optional[Condition] = None,
-            *,
-            add_version_condition: bool = True,
+        self,
+        condition: Optional[Condition] = None,
+        *,
+        add_version_condition: bool = True,
     ) -> Dict[str, Any]:
         """
         Save this object to dynamodb
@@ -504,12 +504,12 @@ class Model(AttributeContainer, metaclass=MetaModel):
         self.deserialize(item_data)
 
     def get_update_kwargs_from_instance(
-            self,
-            actions: List[Action],
-            condition: Optional[Condition] = None,
-            return_values_on_condition_failure: Optional[str] = None,
-            *,
-            add_version_condition: bool = True,
+        self,
+        actions: List[Action],
+        condition: Optional[Condition] = None,
+        return_values_on_condition_failure: Optional[str] = None,
+        *,
+        add_version_condition: bool = True,
     ) -> Dict[str, Any]:
         hk_value, rk_value = self._get_hash_range_key_serialized_values()
 
@@ -527,11 +527,11 @@ class Model(AttributeContainer, metaclass=MetaModel):
         )
 
     def get_delete_kwargs_from_instance(
-            self,
-            condition: Optional[Condition] = None,
-            return_values_on_condition_failure: Optional[str] = None,
-            *,
-            add_version_condition: bool = True,
+        self,
+        condition: Optional[Condition] = None,
+        return_values_on_condition_failure: Optional[str] = None,
+        *,
+        add_version_condition: bool = True,
     ) -> Dict[str, Any]:
         hk_value, rk_value = self._get_hash_range_key_serialized_values()
 
@@ -548,9 +548,9 @@ class Model(AttributeContainer, metaclass=MetaModel):
         )
 
     def get_save_kwargs_from_instance(
-            self,
-            condition: Optional[Condition] = None,
-            return_values_on_condition_failure: Optional[str] = None,
+        self,
+        condition: Optional[Condition] = None,
+        return_values_on_condition_failure: Optional[str] = None,
     ) -> Dict[str, Any]:
         args, save_kwargs = self._get_save_args(condition=condition)
         save_kwargs['key'] = ITEM
@@ -561,10 +561,10 @@ class Model(AttributeContainer, metaclass=MetaModel):
 
     @classmethod
     def get_operation_kwargs_from_class(
-            cls,
-            hash_key: _KeyType,
-            range_key: Optional[_KeyType] = None,
-            condition: Optional[Condition] = None,
+        cls,
+        hash_key: _KeyType,
+        range_key: Optional[_KeyType] = None,
+        condition: Optional[Condition] = None,
     ) -> Dict[str, Any]:
         hash_key, range_key = cls._serialize_keys(hash_key, range_key)
         return cls._get_connection().get_operation_kwargs(
@@ -573,11 +573,11 @@ class Model(AttributeContainer, metaclass=MetaModel):
 
     @classmethod
     def get(
-            cls: Type[_T],
-            hash_key: _KeyType,
-            range_key: Optional[_KeyType] = None,
-            consistent_read: bool = False,
-            attributes_to_get: Optional[Sequence[Text]] = None,
+        cls: Type[_T],
+        hash_key: _KeyType,
+        range_key: Optional[_KeyType] = None,
+        consistent_read: bool = False,
+        attributes_to_get: Optional[Sequence[Text]] = None,
     ) -> _T:
         """
         Returns a single object using the provided keys
@@ -617,15 +617,15 @@ class Model(AttributeContainer, metaclass=MetaModel):
 
     @classmethod
     def count(
-            cls: Type[_T],
-            hash_key: Optional[_KeyType] = None,
-            range_key_condition: Optional[Condition] = None,
-            filter_condition: Optional[Condition] = None,
-            consistent_read: bool = False,
-            index_name: Optional[str] = None,
-            limit: Optional[int] = None,
-            rate_limit: Optional[float] = None,
-            hash_keys: Optional[Mapping[str, _KeyType]] = None,
+        cls: Type[_T],
+        hash_key: Optional[_KeyType] = None,
+        range_key_condition: Optional[Condition] = None,
+        filter_condition: Optional[Condition] = None,
+        consistent_read: bool = False,
+        index_name: Optional[str] = None,
+        limit: Optional[int] = None,
+        rate_limit: Optional[float] = None,
+        hash_keys: Optional[Mapping[str, _KeyType]] = None,
     ) -> int:
         """
         Provides a filtered count
@@ -697,19 +697,19 @@ class Model(AttributeContainer, metaclass=MetaModel):
 
     @classmethod
     def query(
-            cls: Type[_T],
-            hash_key: Optional[_KeyType] = None,
-            range_key_condition: Optional[Condition] = None,
-            filter_condition: Optional[Condition] = None,
-            consistent_read: bool = False,
-            index_name: Optional[str] = None,
-            scan_index_forward: Optional[bool] = None,
-            limit: Optional[int] = None,
-            last_evaluated_key: Optional[Dict[str, Dict[str, Any]]] = None,
-            attributes_to_get: Optional[Iterable[str]] = None,
-            page_size: Optional[int] = None,
-            rate_limit: Optional[float] = None,
-            hash_keys: Optional[Mapping[str, _KeyType]] = None,
+        cls: Type[_T],
+        hash_key: Optional[_KeyType] = None,
+        range_key_condition: Optional[Condition] = None,
+        filter_condition: Optional[Condition] = None,
+        consistent_read: bool = False,
+        index_name: Optional[str] = None,
+        scan_index_forward: Optional[bool] = None,
+        limit: Optional[int] = None,
+        last_evaluated_key: Optional[Dict[str, Dict[str, Any]]] = None,
+        attributes_to_get: Optional[Iterable[str]] = None,
+        page_size: Optional[int] = None,
+        rate_limit: Optional[float] = None,
+        hash_keys: Optional[Mapping[str, _KeyType]] = None,
     ) -> ResultIterator[_T]:
         """
         Provides a high level query API
@@ -782,17 +782,17 @@ class Model(AttributeContainer, metaclass=MetaModel):
 
     @classmethod
     def scan(
-            cls: Type[_T],
-            filter_condition: Optional[Condition] = None,
-            segment: Optional[int] = None,
-            total_segments: Optional[int] = None,
-            limit: Optional[int] = None,
-            last_evaluated_key: Optional[Dict[str, Dict[str, Any]]] = None,
-            page_size: Optional[int] = None,
-            consistent_read: Optional[bool] = None,
-            index_name: Optional[str] = None,
-            rate_limit: Optional[float] = None,
-            attributes_to_get: Optional[Sequence[str]] = None,
+        cls: Type[_T],
+        filter_condition: Optional[Condition] = None,
+        segment: Optional[int] = None,
+        total_segments: Optional[int] = None,
+        limit: Optional[int] = None,
+        last_evaluated_key: Optional[Dict[str, Dict[str, Any]]] = None,
+        page_size: Optional[int] = None,
+        consistent_read: Optional[bool] = None,
+        index_name: Optional[str] = None,
+        rate_limit: Optional[float] = None,
+        attributes_to_get: Optional[Sequence[str]] = None,
     ) -> ResultIterator[_T]:
         """
         Iterates through all items in the table
@@ -873,12 +873,12 @@ class Model(AttributeContainer, metaclass=MetaModel):
 
     @classmethod
     def create_table(
-            cls,
-            wait: bool = False,
-            read_capacity_units: Optional[int] = None,
-            write_capacity_units: Optional[int] = None,
-            billing_mode: Optional[str] = None,
-            ignore_update_ttl_errors: bool = False,
+        cls,
+        wait: bool = False,
+        read_capacity_units: Optional[int] = None,
+        write_capacity_units: Optional[int] = None,
+        billing_mode: Optional[str] = None,
+        ignore_update_ttl_errors: bool = False,
     ) -> Any:
         """
         Create the table for this model
@@ -988,10 +988,10 @@ class Model(AttributeContainer, metaclass=MetaModel):
         return schema
 
     def _get_save_args(
-            self,
-            condition: Optional[Condition] = None,
-            *,
-            add_version_condition: bool = True,
+        self,
+        condition: Optional[Condition] = None,
+        *,
+        add_version_condition: bool = True,
     ) -> Tuple[Iterable[Any], Dict[str, Any]]:
         """
         Gets the proper *args, **kwargs for saving and retrieving this object
@@ -1043,10 +1043,10 @@ class Model(AttributeContainer, metaclass=MetaModel):
         return hk_serialized_value, rk_serialized_value
 
     def _handle_version_attribute(
-            self,
-            *,
-            attributes: Optional[Dict[str, Any]] = None,
-            actions: Optional[List[Action]] = None,
+        self,
+        *,
+        attributes: Optional[Dict[str, Any]] = None,
+        actions: Optional[List[Action]] = None,
     ) -> Optional[Condition]:
         """
         Handles modifying the request to set or increment the version attribute.
